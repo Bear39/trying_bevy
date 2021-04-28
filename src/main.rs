@@ -12,46 +12,58 @@ fn main() {
 }
 
 //Creating Marker Component for Player
-struct Player;
-
-struct Player2 {
+struct Player {
     velocity: f32,
-    direction: Vec2,
+    direction: Direction,
 }
+
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            velocity: 100.0,
+            direction: Direction::Up,
+        }
+    }
+}
+
+// struct Player2 {
+//     velocity: f32,
+//     direction: Direction,
+// }
 
 // impl Default for Player2 {
 //     fn default() -> Self {
 //         Self {
-//             direction: Vec2::new(0.0, 1.0).normalize(),
+//             direction: Up,
 //             velocity: 200.0,
 //         }
 //     }
 // }
 
-// enum Direction {
-//     Left,
-//     Up,
-//     Right,
-//     Down,
-// }
-//
-// impl Direction {
-//     fn opposite(self) -> Self {
-//         match self {
-//             Self::Left => Self::Right,
-//             Self::Right => Self::Left,
-//             Self::Up => Self::Down,
-//             Self::Down => Self::Up,
-//         }
-//     }
-// }
+// PartialEq to compare (!=,==, etc)
+// Copy to copy value (dir = player.direction)
+// Clone for Copy
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum Direction {
+    Left,
+    Up,
+    Right,
+    Down,
+}
+
+impl Direction {
+    fn opposite(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+        }
+    }
+}
 
 //Creating material component for Player
 struct Material(Handle<ColorMaterial>);
-
-struct Velocity(f32);
-
-struct Name(String);
 
 //creating initial setup, with Commands as parameter, commands used as spawner
 fn setup(mut commands: Commands, mut material: ResMut<Assets<ColorMaterial>>) {
@@ -69,9 +81,7 @@ fn spawn_player(mut commands: Commands, materials: Res<Material>) {
             sprite: Sprite::new(Vec2::new(10.0, 10.0)),
             ..Default::default()
         })
-        .insert(Player)
-        .insert(Velocity(100.0))
-        .insert(Name("Bear".to_string()));
+        .insert(Player::default());
 
     // commands
     //     // here we maake Player2 as entity
@@ -86,37 +96,61 @@ fn spawn_player(mut commands: Commands, materials: Res<Material>) {
 // Accessing player position from it's transform (included in spritebundle)
 fn player_movement(
     // Taking transform component from player entity
-    mut movement_data: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    mut movement_data: Query<(&mut Player, &mut Transform)>,
     time: Res<Time>,
     //mut positions2: Query<&mut Transform, With<Player2>>,
     input: Res<Input<KeyCode>>,
 ) {
     let delta_time = time.delta_seconds();
-    for (mut transform, mut velocity) in movement_data.iter_mut() {
+    let mut dir: Direction;
+    for (mut player, mut transform) in movement_data.iter_mut() {
+        //changing player direction
         if input.pressed(KeyCode::Left) {
-            transform.translation.x -= delta_time * velocity.0;
+            //transform.translation.x -= delta_time * velocity.0;
+            dir = Direction::Left;
+        } else if input.pressed(KeyCode::Right) {
+            // transform.translation.x += delta_time * velocity.0;
+            dir = Direction::Right;
+        } else if input.pressed(KeyCode::Down) {
+            // transform.translation.y -= delta_time * velocity.0;
+            dir = Direction::Down;
+        } else if input.pressed(KeyCode::Up) {
+            // transform.translation.y += delta_time * velocity.0;
+            dir = Direction::Up;
+        } else {
+            dir = player.direction;
         }
-        if input.pressed(KeyCode::Right) {
-            transform.translation.x += delta_time * velocity.0;
+
+        if dir != player.direction.opposite() {
+            player.direction = dir;
         }
-        if input.pressed(KeyCode::Down) {
-            transform.translation.y -= delta_time * velocity.0;
-        }
-        if input.pressed(KeyCode::Up) {
-            transform.translation.y += delta_time * velocity.0;
+
+        match player.direction {
+            Direction::Up => {
+                transform.translation.y += delta_time * player.velocity;
+            }
+            Direction::Down => {
+                transform.translation.y -= delta_time * player.velocity;
+            }
+            Direction::Left => {
+                transform.translation.x -= delta_time * player.velocity;
+            }
+            Direction::Right => {
+                transform.translation.x += delta_time * player.velocity;
+            }
         }
         //speed up
         if input.pressed(KeyCode::W) {
-            velocity.0 += 10.0;
+            player.velocity += 10.0;
         }
         //speed down
         if input.pressed(KeyCode::S) {
-            velocity.0 -= 10.0;
+            player.velocity -= 10.0;
         }
         // reset
         if input.pressed(KeyCode::R) {
             transform.translation = Vec3::ZERO;
-            velocity.0 = 100.0;
+            player.velocity = 100.0;
         }
     }
 
