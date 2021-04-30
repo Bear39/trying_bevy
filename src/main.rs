@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use bevy_rapier2d::{
-    physics::RapierPhysicsPlugin,
+    physics::{RapierPhysicsPlugin, RigidBodyHandleComponent},
     rapier::{
         dynamics::{RigidBodyBuilder, RigidBodySet},
-        geometry::{ColliderBuilder, ColliderSet},
+        geometry::ColliderBuilder,
+        na::{Isometry2, Vector2},
     },
-    render::RapierRenderPlugin,
+    //render::RapierRenderPlugin,
 };
 
 fn main() {
@@ -23,7 +24,8 @@ fn main() {
         // work only once
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_players.system()))
-        .add_system(player_movement.system())
+        .add_system(player1_movement.system())
+        .add_system(player2_movement.system())
         .run();
 }
 
@@ -36,7 +38,7 @@ struct Player {
 impl Default for Player {
     fn default() -> Self {
         Self {
-            velocity: 1.,
+            velocity: 250.,
             direction: Direction::Up,
         }
     }
@@ -51,7 +53,7 @@ impl Default for Player2 {
     fn default() -> Self {
         Self {
             direction: Direction::Up,
-            velocity: 1.0,
+            velocity: 100.,
         }
     }
 }
@@ -125,15 +127,15 @@ fn spawn_players(mut commands: Commands, materials: Res<Material>) {
 }
 
 // Accessing player position from it's transform (included in spritebundle)
-fn player_movement(
+fn player1_movement(
     // Taking transform component from player entity
     mut movement_data: Query<(&mut Player, &mut Transform)>,
     time: Res<Time>,
     //mut positions2: Query<&mut Transform, With<Player2>>,
     input: Res<Input<KeyCode>>,
 ) {
-    let mut dir: Direction;
     for (mut player, mut transform) in movement_data.iter_mut() {
+        let dir: Direction;
         //changing player direction
         if input.pressed(KeyCode::Left) {
             //transform.translation.x -= delta_time * velocity.0;
@@ -158,30 +160,30 @@ fn player_movement(
         let delta_time = time.delta_seconds();
         match player.direction {
             Direction::Up => {
-                transform.translation.y += 5. * player.velocity;
+                transform.translation.y += delta_time * player.velocity;
             }
             Direction::Down => {
-                transform.translation.y -= 5. * player.velocity;
+                transform.translation.y -= delta_time * player.velocity;
             }
             Direction::Left => {
-                transform.translation.x -= 5. * player.velocity;
+                transform.translation.x -= delta_time * player.velocity;
             }
             Direction::Right => {
-                transform.translation.x += 5. * player.velocity;
+                transform.translation.x += delta_time * player.velocity;
             }
         }
         //speed up
-        if input.just_pressed(KeyCode::W) {
-            player.velocity += 0.5;
+        if input.just_pressed(KeyCode::F1) {
+            player.velocity += 10.;
         }
         //speed down
-        if input.just_pressed(KeyCode::S) {
-            player.velocity -= 0.5;
+        if input.just_pressed(KeyCode::F2) {
+            player.velocity -= 10.;
         }
         // reset
-        if input.pressed(KeyCode::R) {
+        if input.pressed(KeyCode::Escape) {
             transform.translation = Vec3::ZERO;
-            player.velocity = 1.;
+            player.velocity = 250.;
         }
     }
 
@@ -199,4 +201,76 @@ fn player_movement(
     //         transform2.translation.y += 2.;
     //     }
     // }
+}
+
+fn player2_movement(
+    input: Res<Input<KeyCode>>,
+    mut rigid_body: ResMut<RigidBodySet>,
+    mut query: Query<(&mut Player2, &RigidBodyHandleComponent)>,
+) {
+    for (mut player, rigid_body_component) in query.iter_mut() {
+        let dir: Direction;
+        if input.pressed(KeyCode::A) {
+            //transform.translation.x -= delta_time * velocity.0;
+            dir = Direction::Left;
+        } else if input.pressed(KeyCode::D) {
+            // transform.translation.x += delta_time * velocity.0;
+            dir = Direction::Right;
+        } else if input.pressed(KeyCode::S) {
+            // transform.translation.y -= delta_time * velocity.0;
+            dir = Direction::Down;
+        } else if input.pressed(KeyCode::W) {
+            // transform.translation.y += delta_time * velocity.0;
+            dir = Direction::Up;
+        } else {
+            dir = player.direction;
+        }
+
+        if dir != player.direction.opposite() {
+            player.direction = dir;
+        }
+
+        let x_asis: i8;
+        let y_asis: i8;
+
+        match player.direction {
+            Direction::Up => {
+                x_asis = 0;
+                y_asis = 1;
+            }
+            Direction::Down => {
+                x_asis = 0;
+                y_asis = -1;
+            }
+            Direction::Left => {
+                x_asis = -1;
+                y_asis = 0;
+            }
+            Direction::Right => {
+                x_asis = 1;
+                y_asis = 0;
+            }
+        }
+
+        if input.just_pressed(KeyCode::F3) {
+            player.velocity += 1.;
+        }
+        //speed down
+        if input.just_pressed(KeyCode::F4) {
+            player.velocity -= 1.;
+        }
+
+        let linvel = Vector2::new(
+            x_asis as f32 * player.velocity,
+            y_asis as f32 * player.velocity,
+        );
+
+        if let Some(rb) = rigid_body.get_mut(rigid_body_component.handle()) {
+            rb.set_linvel(linvel, true);
+
+            if input.pressed(KeyCode::Escape) {
+                rb.set_position(Isometry2::identity(), true);
+            }
+        }
+    }
 }
